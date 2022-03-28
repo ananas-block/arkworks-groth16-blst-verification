@@ -4,6 +4,7 @@ use crate::arkworks_circuit::*;
 use blst::blst_miller_loop;
 use blst::*;
 use blstrs::*;
+
 use pairing::MultiMillerLoop;
 use pairing::Engine;
 // For randomness (during paramgen and proof generation)
@@ -39,6 +40,7 @@ use ark_groth16::{
 };
 use std::ops::MulAssign;
 use pairing::MillerLoopResult;
+ use std::ops::Mul;
 
 pub fn blstrs_test() {
 
@@ -93,7 +95,45 @@ pub fn blstrs_test() {
         println!("success");
         let prepared_inputs = prepare_inputs(&pvk, &[image]).unwrap();
         println!(" proof.a {:?}", proof.a);
+        let mut input_bytes = vec![];
+        <Fr as ToBytes>::write(
+            &image,
+            &mut input_bytes,
+        )
+        .unwrap();
+        let mut gamma_abc_g1_bytes_0 = vec![0u8;96];
+        let mut gamma_abc_g1_bytes_1 = vec![0u8;96];
 
+        parse_proof_a_or_c_to_bytes(params.vk.gamma_abc_g1[0], &mut gamma_abc_g1_bytes_0);
+        parse_proof_a_or_c_to_bytes(params.vk.gamma_abc_g1[1], &mut gamma_abc_g1_bytes_1);
+        println!("proof_b_g2_bytes: {:?}", gamma_abc_g1_bytes_0     );
+
+        let gamma_abc_g1_blst_1 = blst_p1_affine {
+            x: read_fp_blst(&gamma_abc_g1_bytes_1[0..48]),
+            y: read_fp_blst(&gamma_abc_g1_bytes_1[48..96])
+        };
+        let mut p2_bytes_be = [0u8;96];
+        unsafe {
+            let blst_fp_ptr: *const blst::blst_p1_affine = &gamma_abc_g1_blst_1;
+
+            blst_p1_affine_serialize(
+                p2_bytes_be.as_mut_ptr(),
+                blst_fp_ptr
+            );
+        };
+        let mut g1_affine_0 = G1Affine::from_uncompressed(&p2_bytes_be).unwrap();
+
+        let bytes_u64 = u64s_from_bytes(&input_bytes.clone().try_into().unwrap());
+        let mut input_bytes_blst = blst_fr::default();
+        unsafe { blst_fr_from_uint64(&mut input_bytes_blst, &bytes_u64[0]) };
+
+        // println!("bytes_u64: {:?}",<blstrs::Scalar as From<blst_fr>>::from(input_bytes_blst));
+        // Scalar is correct
+        println!("g1_affine_0: {:?}",g1_affine_0);
+
+        g1_affine_0.mul_assign(&<blstrs::Scalar as From<blst_fr>>::from(input_bytes_blst));
+        println!("{:?}", g1_affine_0);
+        panic!();
         let proof_a_g1 = proof.a;//(prepared_inputs).into_affine();
 
         let mut proof_a_g1_bytes = vec![0u8;96];

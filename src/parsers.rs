@@ -116,3 +116,13 @@ pub fn parse_proof_a_or_c_to_bytes(
     <Fp384<ark_bls12_381::FqParameters> as ToBytes>::write(&x.x, &mut account[0..48]).unwrap();
     <Fp384<ark_bls12_381::FqParameters> as ToBytes>::write(&x.y, &mut account[48..96]).unwrap();
 }
+
+pub fn u64s_from_bytes(bytes: &[u8; 32]) -> [u64; 4] {
+    println!("u64s_from_bytes: {:?}", bytes);
+    [
+        u64::from_le_bytes(bytes[0..8].try_into().unwrap()),
+        u64::from_le_bytes(bytes[8..16].try_into().unwrap()),
+        u64::from_le_bytes(bytes[16..24].try_into().unwrap()),
+        u64::from_le_bytes(bytes[24..32].try_into().unwrap()),
+    ]
+}

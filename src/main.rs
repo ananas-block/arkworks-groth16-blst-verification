@@ -23,7 +23,8 @@ use ark_std::test_rng;
 use ark_groth16::prepare_inputs;
 use ark_ec::ProjectiveCurve;
 
-use ark_ff::Fp384;
+use ark_ff::{Fp384, Fp256};
+use ark_bn254;
 use ark_std::UniformRand;
 use ark_ff::bytes::{FromBytes, ToBytes};
 use std::convert::{TryFrom, TryInto};
@@ -41,6 +42,7 @@ use ark_groth16::{
     create_random_proof, generate_random_parameters, prepare_verifying_key, verify_proof,
 };
 use std::ops::MulAssign;
+use byte_slice_cast::AsByteSlice;
 fn groth_16_test() {
 
     // This may not be cryptographically safe, use
@@ -93,6 +95,71 @@ fn groth_16_test() {
         assert!(verify_proof(&pvk, &proof, &[image]).unwrap());
         println!("success");
         let prepared_inputs = prepare_inputs(&pvk, &[image]).unwrap();
+
+        /*
+        from arkworks groth16
+        if (public_inputs.len() + 1) != pvk.vk.gamma_abc_g1.len() {
+            return Err(SynthesisError::MalformedVerifyingKey);
+        }
+
+        let mut g_ic = pvk.vk.gamma_abc_g1[0].into_projective();
+        for (i, b) in public_inputs.iter().zip(pvk.vk.gamma_abc_g1.iter().skip(1)) {
+            g_ic.add_assign(&b.mul(i.into_repr()));
+        }
+        */
+        let mut input_bytes = vec![];
+        <Fr as ToBytes>::write(
+            &image,
+            &mut input_bytes,
+        )
+        .unwrap();
+        const NBITS: usize = 255;
+        // create scalar
+        let mut input_bytes_blst = blst_fr::default();
+        println!("input_bytes: {:?}", input_bytes);
+
+        let bytes_u64 = u64s_from_bytes(&input_bytes.clone().try_into().unwrap());
+        println!("bytes_u64: {:?}", bytes_u64);
+
+        unsafe { blst_fr_from_uint64(&mut input_bytes_blst, &bytes_u64[0]) };
+        println!("out: {:?}", input_bytes_blst);
+
+        let mut gamma_abc_g1_bytes_0 = vec![0u8;96];
+        let mut gamma_abc_g1_bytes_1 = vec![0u8;96];
+
+        parse_proof_a_or_c_to_bytes(params.vk.gamma_abc_g1[0], &mut gamma_abc_g1_bytes_0);
+        parse_proof_a_or_c_to_bytes(params.vk.gamma_abc_g1[1], &mut gamma_abc_g1_bytes_1);
+
+        let mut g_ic = get_p1(&gamma_abc_g1_bytes_0);
+        // println!("gamma_abc_g1_blst {:?}", gamma_abc_g1_blst_0);
+        // println!("params.vk.gamma_abc_g1 {:?}", params.vk.gamma_abc_g1);
+        let mut gamma_abc_g1_blst = get_p1(&gamma_abc_g1_bytes_1);
+        let mut gamma_abc_g1_affine_blst = get_p1_affine(&gamma_abc_g1_bytes_1);
+
+
+        //let mut g_ic = blst_p1::default();
+        //unsafe { blst_p1_from_affine(&mut out, &p.0) };
+        println!(" i {:?}", <Fr as FromBytes>::read(&*input_bytes));
+        println!(" b {:?}", gamma_abc_g1_blst);
+        let mut g_ic_1 = blst_p1::default();
+        let mut bytes_be = [0u8; 32];
+        for (i, elem) in input_bytes.iter().rev().enumerate(){
+            bytes_be[i] = *elem;
+        }
+
+        unsafe { blst_p1_mult(&mut g_ic_1, &gamma_abc_g1_blst, &input_bytes[0], NBITS) };
+
+        // let affine_blst = p1_affines::from(&[gamma_abc_g1_blst]);
+        // let affine_blst_mul_res = affine_blst.mult(&input_bytes, NBITS);
+        println!(" \nafter mul {:?}\n", g_ic_1);
+        let mut g_ic_res = blst_p1::default();
+
+        //unsafe { blst_p1_add(&mut g_ic, &g_ic, &affine_blst) };
+        // println!(" \nprepared input {:?}", g_ic);
+        // println!("\n(prepared_inputs): {:?}", (prepared_inputs));// .into_affine()
+        let prepared_inputs = prepare_inputs(&pvk, &[image]).unwrap();
+
+        panic!();
         println!(" proof.a {:?}", proof.a);
 
         let proof_a_g1 = proof.a;//(prepared_inputs).into_affine();
@@ -246,6 +313,24 @@ fn groth_16_test() {
         assert_eq!(tmp0.final_exp(), parse_fp12_from_bytes_blst(&fqk_ark_bytes), "final exp blst failed");
 
         assert_eq!(prng.as_fp12().final_exp(), tmp0.final_exp(), "final exp blst failed commit");
+        //let res = prng.finalverify(None);
+        println!("prng res: {:?}", prng.as_fp12());
+
+        parse_f_to_bytes(pvk.alpha_g1_beta_g2, &mut fqk_ark_bytes);
+        println!("pvk.alpha_g1_beta_g2: {:?}", pvk.alpha_g1_beta_g2);
+
+        //println!("prng after final exp: {:?}", prng.as_fp12().final_exp());
+        //println!("res: {}", res);
+        // assert_eq!(res_origin, pvk.alpha_g1_beta_g2, "arkworks lib failed");
+
+        //let fe_blst = parse_fp12_from_bytes_blst(&fqk_ark_bytes).final_exp();
+        parse_f_to_bytes(res_origin, &mut fqk_ark_bytes);
+        let other_res = prng.as_fp12().final_exp();
+        //assert_eq!(prng.as_fp12(), parse_fp12_from_bytes_blst(&fqk_ark_bytes), "final exp blst failed");
+        println!("res_origin {}", res_origin);
+        assert_eq!(tmp0.final_exp(), parse_fp12_from_bytes_blst(&fqk_ark_bytes), "final exp blst failed");
+
+        assert_eq!(prng.as_fp12().final_exp(), tmp0.final_exp(), "final exp blst failed commit");
 
         // assert_eq!(tmp0.final_exp(), parse_fp12_from_bytes_blst(&fqk_ark_bytes), "final exp blst failed");
         //assert_eq!(res_origin, pvk.alpha_g1_beta_g2, "blst lib failed");
@@ -268,6 +353,40 @@ fn groth_16_test() {
     }
 }
 
+fn get_p1(proof_a_g1_bytes: &[u8]) -> blst_p1 {
+    let mut  blst_proof_a_man = blst_p1_affine {
+        x: read_fp_blst(&proof_a_g1_bytes[0..48]),
+        y: read_fp_blst(&proof_a_g1_bytes[48..96]),
+    };
+    let mut p1_a_bytes_be = [0u8;96];
+    unsafe {
+
+        let blst_fp_ptr: *const blst::blst_p1_affine = &blst_proof_a_man;
+
+        blst_p1_affine_serialize(
+            p1_a_bytes_be.as_mut_ptr(),
+            blst_fp_ptr
+        );
+    };
+    //println!("p1_a_bytes_be {:?}", p1_a_bytes_be);
+    let mut blst_proof_a = blst_p1_affine::default();
+    let mut out = blst_p1::default();
+
+    unsafe {
+       blst_p1_deserialize(&mut blst_proof_a, p1_a_bytes_be.as_ptr());
+
+        unsafe { blst_p1_from_affine(&mut out, &blst_proof_a) };
+    }
+    out
+}
+
+
+pub fn to_bytes_le(fr: blst_fr) -> [u8; 32] {
+        let mut out = [0u64; 4];
+        println!("to_bytes_le: {:?}", fr);
+        unsafe { blst_uint64_from_fr(out.as_mut_ptr(), &fr) };
+        out.as_byte_slice().try_into().unwrap()
+}
 fn get_p1_affine(proof_a_g1_bytes: &[u8]) -> blst_p1_affine {
     let mut  blst_proof_a_man = blst_p1_affine {
         x: read_fp_blst(&proof_a_g1_bytes[0..48]),
@@ -343,8 +462,8 @@ fn le_vs_be_test(){
 fn main() {
     //println!("g1 affine default: {:?}", );
     //le_vs_be_test();
-    groth_16_test();
-    //blstrs_test();
+    //groth_16_test();
+    blstrs_test();
     // let mut dst = [0u8; 96 * 3 + 192 * 3];
     // let mut prng = Pairing::new(false, &dst);
     // println!("prng: {:?}", prng);
