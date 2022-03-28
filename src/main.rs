@@ -353,33 +353,6 @@ fn groth_16_test() {
     }
 }
 
-fn get_p1(proof_a_g1_bytes: &[u8]) -> blst_p1 {
-    let mut  blst_proof_a_man = blst_p1_affine {
-        x: read_fp_blst(&proof_a_g1_bytes[0..48]),
-        y: read_fp_blst(&proof_a_g1_bytes[48..96]),
-    };
-    let mut p1_a_bytes_be = [0u8;96];
-    unsafe {
-
-        let blst_fp_ptr: *const blst::blst_p1_affine = &blst_proof_a_man;
-
-        blst_p1_affine_serialize(
-            p1_a_bytes_be.as_mut_ptr(),
-            blst_fp_ptr
-        );
-    };
-    //println!("p1_a_bytes_be {:?}", p1_a_bytes_be);
-    let mut blst_proof_a = blst_p1_affine::default();
-    let mut out = blst_p1::default();
-
-    unsafe {
-       blst_p1_deserialize(&mut blst_proof_a, p1_a_bytes_be.as_ptr());
-
-        unsafe { blst_p1_from_affine(&mut out, &blst_proof_a) };
-    }
-    out
-}
-
 
 pub fn to_bytes_le(fr: blst_fr) -> [u8; 32] {
         let mut out = [0u64; 4];
@@ -387,7 +360,7 @@ pub fn to_bytes_le(fr: blst_fr) -> [u8; 32] {
         unsafe { blst_uint64_from_fr(out.as_mut_ptr(), &fr) };
         out.as_byte_slice().try_into().unwrap()
 }
-fn get_p1_affine(proof_a_g1_bytes: &[u8]) -> blst_p1_affine {
+pub fn get_p1_affine(proof_a_g1_bytes: &[u8]) -> blst_p1_affine {
     let mut  blst_proof_a_man = blst_p1_affine {
         x: read_fp_blst(&proof_a_g1_bytes[0..48]),
         y: read_fp_blst(&proof_a_g1_bytes[48..96]),
@@ -408,7 +381,7 @@ fn get_p1_affine(proof_a_g1_bytes: &[u8]) -> blst_p1_affine {
     }
     blst_proof_a
 }
-fn get_p2_affine(proof_b_g2_bytes: &[u8]) -> blst_p2_affine {
+pub fn get_p2_affine(proof_b_g2_bytes: &[u8]) -> blst_p2_affine {
     let mut p2_b_bytes_be = [0u8;96];
 
     let blst_proof_b_man = blst_p2_affine {

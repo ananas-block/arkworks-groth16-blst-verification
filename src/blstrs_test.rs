@@ -4,7 +4,7 @@ use crate::arkworks_circuit::*;
 use blst::blst_miller_loop;
 use blst::*;
 use blstrs::*;
-
+use std::ops::AddAssign;
 use pairing::MultiMillerLoop;
 use pairing::Engine;
 // For randomness (during paramgen and proof generation)
@@ -34,7 +34,7 @@ use ark_relations::{
 };
 use ark_ec::models::bls12::g1::G1Prepared;
 use ark_ec::models::bls12::g2::G2Prepared;
-
+use ark_ec::AffineCurve;
 use ark_groth16::{
     create_random_proof, generate_random_parameters, prepare_verifying_key, verify_proof,
 };
@@ -91,48 +91,75 @@ pub fn blstrs_test() {
 
         // Create a groth16 proof with our parameters.
         let proof = create_random_proof(c, &params, rng).unwrap();
+        // check that groth16 proof is valid
         assert!(verify_proof(&pvk, &proof, &[image]).unwrap());
-        println!("success");
+
+        // reference prepared inputs
         let prepared_inputs = prepare_inputs(&pvk, &[image]).unwrap();
-        println!(" proof.a {:?}", proof.a);
+
+
+        // parsing verifying key
+        let mut gamma_abc_g1_bytes_0 = vec![0u8;96];
+        let mut gamma_abc_g1_bytes_1 = vec![0u8;96];
+
+        parse_proof_a_or_c_to_bytes(params.vk.gamma_abc_g1[0], &mut gamma_abc_g1_bytes_0);
+        parse_proof_a_or_c_to_bytes(params.vk.gamma_abc_g1[1], &mut gamma_abc_g1_bytes_1);
+        let gamma_abc_g1_blst_1 = blst_p1_affine {
+            x: read_fp_blst(&gamma_abc_g1_bytes_1[0..48]),
+            y: read_fp_blst(&gamma_abc_g1_bytes_1[48..96])
+        };
+        let mut bytes_pvk_1 = [0u8;96];
+        unsafe {
+            blst_p1_affine_serialize(
+                bytes_pvk_1.as_mut_ptr(),
+                &gamma_abc_g1_blst_1
+            );
+        };
+
+        let gamma_abc_g1_blst_0 = blst_p1_affine {
+            x: read_fp_blst(&gamma_abc_g1_bytes_0[0..48]),
+            y: read_fp_blst(&gamma_abc_g1_bytes_0[48..96])
+        };
+        let mut bytes_pvk_0 = [0u8;96];
+        unsafe {
+            blst_p1_affine_serialize(
+                bytes_pvk_0.as_mut_ptr(),
+                &gamma_abc_g1_blst_0
+            );
+        };
+
+        // prepare data for public inputs offchain
         let mut input_bytes = vec![];
         <Fr as ToBytes>::write(
             &image,
             &mut input_bytes,
         )
         .unwrap();
-        let mut gamma_abc_g1_bytes_0 = vec![0u8;96];
-        let mut gamma_abc_g1_bytes_1 = vec![0u8;96];
-
-        parse_proof_a_or_c_to_bytes(params.vk.gamma_abc_g1[0], &mut gamma_abc_g1_bytes_0);
-        parse_proof_a_or_c_to_bytes(params.vk.gamma_abc_g1[1], &mut gamma_abc_g1_bytes_1);
-        println!("proof_b_g2_bytes: {:?}", gamma_abc_g1_bytes_0     );
-
-        let gamma_abc_g1_blst_1 = blst_p1_affine {
-            x: read_fp_blst(&gamma_abc_g1_bytes_1[0..48]),
-            y: read_fp_blst(&gamma_abc_g1_bytes_1[48..96])
-        };
-        let mut p2_bytes_be = [0u8;96];
-        unsafe {
-            let blst_fp_ptr: *const blst::blst_p1_affine = &gamma_abc_g1_blst_1;
-
-            blst_p1_affine_serialize(
-                p2_bytes_be.as_mut_ptr(),
-                blst_fp_ptr
-            );
-        };
-        let mut g1_affine_0 = G1Affine::from_uncompressed(&p2_bytes_be).unwrap();
-
         let bytes_u64 = u64s_from_bytes(&input_bytes.clone().try_into().unwrap());
         let mut input_bytes_blst = blst_fr::default();
+
+        // onchain
+        // create pvk affines these values should be hardcoded
+        let mut g1_affine_0 = G1Affine::from_uncompressed(&bytes_pvk_0).unwrap();
+        let mut g1_affine_1 = G1Affine::from_uncompressed(&bytes_pvk_1).unwrap();
+        let mut g_ic = G1Projective::from(&g1_affine_0);
+
+        // create scalar(s) of public input(s) onchain
         unsafe { blst_fr_from_uint64(&mut input_bytes_blst, &bytes_u64[0]) };
+        let scalar = <blstrs::Scalar as From<blst_fr>>::from(input_bytes_blst);
 
-        // println!("bytes_u64: {:?}",<blstrs::Scalar as From<blst_fr>>::from(input_bytes_blst));
-        // Scalar is correct
-        println!("g1_affine_0: {:?}",g1_affine_0);
 
-        g1_affine_0.mul_assign(&<blstrs::Scalar as From<blst_fr>>::from(input_bytes_blst));
-        println!("{:?}", g1_affine_0);
+        // prepare inputs computation onchain
+        for i in number_of_public_inputs {
+            g1_affine_1.mul_assign(&scalar);
+            g_ic.add_assign(&g1_affine_1);
+            //unsafe { blst_p1_add_or_double_affine(&mut self.0, &self.0, &rhs.0) };
+        }
+
+        println!("gamma_abc_g1_blst {:?}", G1Affine::from(&g_ic));
+        println!("prepared_inputs {}", prepared_inputs.into_affine());
+
+
         panic!();
         let proof_a_g1 = proof.a;//(prepared_inputs).into_affine();
 

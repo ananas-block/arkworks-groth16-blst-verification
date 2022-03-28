@@ -5,8 +5,8 @@ use ark_ff::fields::models::quadratic_extension::QuadExtField;
 use ark_ff::Fp384;
 use ark_ff::One;
 use ark_ff::BigInteger;
-
-
+use blst::*;
+use crate::arkworks_circuit::*;
 pub fn parse_proof_b_from_bytes(
     range: &Vec<u8>,
 ) -> ark_ec::models::bls12::g2::G2Affine<ark_bls12_381::Parameters> {
@@ -125,4 +125,31 @@ pub fn u64s_from_bytes(bytes: &[u8; 32]) -> [u64; 4] {
         u64::from_le_bytes(bytes[16..24].try_into().unwrap()),
         u64::from_le_bytes(bytes[24..32].try_into().unwrap()),
     ]
+}
+
+pub fn get_p1(proof_a_g1_bytes: &[u8]) -> blst_p1 {
+    let mut  blst_proof_a_man = blst_p1_affine {
+        x: read_fp_blst(&proof_a_g1_bytes[0..48]),
+        y: read_fp_blst(&proof_a_g1_bytes[48..96]),
+    };
+    let mut p1_a_bytes_be = [0u8;96];
+    unsafe {
+
+        let blst_fp_ptr: *const blst::blst_p1_affine = &blst_proof_a_man;
+
+        blst_p1_affine_serialize(
+            p1_a_bytes_be.as_mut_ptr(),
+            blst_fp_ptr
+        );
+    };
+    //println!("p1_a_bytes_be {:?}", p1_a_bytes_be);
+    let mut blst_proof_a = blst_p1_affine::default();
+    let mut out = blst_p1::default();
+
+    unsafe {
+       blst_p1_deserialize(&mut blst_proof_a, p1_a_bytes_be.as_ptr());
+
+        unsafe { blst_p1_from_affine(&mut out, &blst_proof_a) };
+    }
+    out
 }
