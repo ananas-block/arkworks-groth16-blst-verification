@@ -1,8 +1,8 @@
 #ark_groth16 on bls12 381 proof verification with blst
 
-This is a proof of concept on how to use blst to verify arkworks groth16 proofs on bls12 381.
+This is a proof of concept on how to use [blst](https://github.com/supranational/blst) to verify arkworks groth16 proofs on bls12 381.
 
-The filecoin team has created a wrapper library around blst which is simpler to use https://github.com/filecoin-project/blstrs.
+The filecoin team has created [blstrs](https://github.com/filecoin-project/blstrs) a rust wrapper library around blst rust bindings which is simpler to use.
 
 ##blst functions and datatypes used in onchain part
 - blst_p1_mult

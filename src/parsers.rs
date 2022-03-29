@@ -1,3 +1,4 @@
+#![allow(unused)]
 use ark_bls12_381;
 use ark_ec;
 use ark_ff::bytes::{FromBytes, ToBytes};
