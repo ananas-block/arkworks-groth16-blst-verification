@@ -32,5 +32,10 @@ For reference, the filecoin team has created [blstrs](https://github.com/filecoi
 - parse_fp6_from_bytes_blst
 - parse_fp12_from_bytes_blst
 
-## Neptune Poseidon hash
+## Neptune Poseidon hash usage
+- PoseidonConstants::<Fr, U2>::new_with_strength(Strength::Standard)
+- Poseidon::<Fr, U2>::new(&constants)
+- h.input(input)
+- h.hash()
+- output.to_bytes_le()
 [neptune_poseidon_hash.rs](https://github.com/ananas-block/arkworks-groth16-blst-verification/blob/main/src/neptune_poseidon_hash.rs) implements an example of poseidon hashes of up to 5 inputs with standard strength using the [neptune library](https://github.com/filecoin-project/neptune).
