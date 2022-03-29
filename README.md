@@ -20,6 +20,8 @@ For reference, the filecoin team has created [blstrs](https://github.com/filecoi
 - blst_p1_deserialize
 - blst_p2
 - blst_p2_affine
+- blst_p2_mult
+- blst_p2_add
 - blst_p2_affine_serialize
 - blst_p2_deserialize
 - blst_p2_affine_on_curve
