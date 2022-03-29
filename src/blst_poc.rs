@@ -183,6 +183,30 @@ pub fn groth_16_verification_with_blst() {
 
         let blst_proof_2_g1 = get_p1_affine(&proof_c_g1_bytes);
         let blst_proof_2_g2 = get_p2_affine(&proof_delta_g2_bytes);
+
+        //alternative with pairing class (fastest)
+        let pairing_class_duration = Instant::now();
+        for i in 0..ITERATIONS {
+            let mut dst = [0u8; 3];
+            let mut paring_blst = Pairing::new(true, &dst);
+            paring_blst.raw_aggregate(&blst_proof_b, &blst_proof_a);
+            paring_blst.raw_aggregate(&blst_proof_1_g2, &blst_proof_1_g1);
+            paring_blst.raw_aggregate(&blst_proof_2_g2, &blst_proof_2_g1);
+            paring_blst.commit();
+            // final verify does not work
+            // let res_pairing_blst = paring_blst.finalverify(Some(&ark_works_ref_final_exp_as_blst));
+            // println!("res_pairing_blst {:?}",res_pairing_blst);
+            // assert!(res_pairing_blst, "pairing_blst final verify failed");
+            assert_eq!(paring_blst.as_fp12().final_exp(), ark_works_ref_final_exp_as_blst, "pairing_blst failed");
+        }
+        println!("duration pairing class {} over {} iterations", pairing_class_duration.elapsed().as_micros(), ITERATIONS);
+        /*
+        // finalverify check fails
+        let res_pairing_blst = paring_blst.finalverify(Some(&fqk_alpha_g1_beta_g2_ark_blst));
+        println!("{:?}",res_pairing_blst);
+        assert!(res_pairing_blst, "pairing_blst failed");
+        */
+
         /*
         let ml_duration = Instant::now();
         for i in 0..ITERATIONS {
@@ -229,28 +253,7 @@ pub fn groth_16_verification_with_blst() {
         }
         println!("ml lines duration {}", ml_lines_duration.elapsed().as_micros());
         */
-        //alternative with pairing class (fastest)
-        let pairing_class_duration = Instant::now();
-        for i in 0..ITERATIONS {
-            let mut dst = [0u8; 3];
-            let mut paring_blst = Pairing::new(true, &dst);
-            paring_blst.raw_aggregate(&blst_proof_b, &blst_proof_a);
-            paring_blst.raw_aggregate(&blst_proof_1_g2, &blst_proof_1_g1);
-            paring_blst.raw_aggregate(&blst_proof_2_g2, &blst_proof_2_g1);
-            paring_blst.commit();
-            // final verify does not work
-            // let res_pairing_blst = paring_blst.finalverify(Some(&ark_works_ref_final_exp_as_blst));
-            // println!("res_pairing_blst {:?}",res_pairing_blst);
-            // assert!(res_pairing_blst, "pairing_blst final verify failed");
-            assert_eq!(paring_blst.as_fp12().final_exp(), ark_works_ref_final_exp_as_blst, "pairing_blst failed");
-        }
-        println!("duration pairing class {} over {} iterations", pairing_class_duration.elapsed().as_micros(), ITERATIONS);
-        /*
-        // finalverify check fails
-        let res_pairing_blst = paring_blst.finalverify(Some(&fqk_alpha_g1_beta_g2_ark_blst));
-        println!("{:?}",res_pairing_blst);
-        assert!(res_pairing_blst, "pairing_blst failed");
-        */
+
         println!("groth 16 verification with blst success");
 
     }

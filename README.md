@@ -1,4 +1,4 @@
-#ark_groth16 on bls12 381 proof verification with blst
+# ark_groth16 on bls12 381 proof verification with blst
 
 This is a proof of concept on how to use [blst](https://github.com/supranational/blst) to verify arkworks groth16 proofs on bls12 381.
 
@@ -6,8 +6,8 @@ The fastest way to verify a proof is by using blst::pairing with paring_blst.as_
 
 The filecoin team has created [blstrs](https://github.com/filecoin-project/blstrs) a rust wrapper library around blst rust bindings which is simpler to use.
 
-##blst functions and datatypes used in onchain part
-- Pairing (including methods)
+## blst functions and datatypes used in onchain part
+- Pairing (including methods: new, raw_aggregate, as_fp12)
 - blst_fp12 (including methods)
 - blst_p1_mult
 - blst_p1_to_affine
@@ -27,5 +27,5 @@ The filecoin team has created [blstrs](https://github.com/filecoin-project/blstr
 - get_p1_affine
 - get_p2_affine
 
-##Neptune Poseidon hash
-neptune_poseidon_hash.rs implements an example of poseidon hashes of up to 5 inputs with the [neptune library](https://github.com/filecoin-project/neptune)
+## Neptune Poseidon hash
+[neptune_poseidon_hash.rs]() implements an example of poseidon hashes of up to 5 inputs with the [neptune library](https://github.com/filecoin-project/neptune).
