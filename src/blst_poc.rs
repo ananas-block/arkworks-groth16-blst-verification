@@ -164,9 +164,6 @@ pub fn groth_16_verification_with_blst() {
             const NBITS: usize = 255;
             unsafe { blst_p1_mult(&mut mul_assign, &p1_pvk_1, scalar_bytes.as_ptr(), NBITS) };
 
-            // let mut mul_assign_affine = blst_p1_affine::default();
-            // unsafe { blst_p1_to_affine(&mut mul_assign_affine, &mul_assign) };
-
             //g_ic.add_assign(&g1_affine_1);
             unsafe { blst_p1_add(&mut p1_pvk_0, &p1_pvk_0, &mul_assign) };
         }
@@ -264,11 +261,12 @@ pub fn groth_16_verification_with_blst() {
 fn create_public_inputs_pvk(pvk_gamma_abc_g1_x: &ark_ec::short_weierstrass_jacobian::GroupAffine<ark_bls12_381::g1::Parameters>) -> blst_p1 {
     let mut pvk_gamma_abc_g1_x_bytes = vec![0u8; 96];
     parse_proof_a_or_c_to_bytes(*pvk_gamma_abc_g1_x,&mut pvk_gamma_abc_g1_x_bytes);
+    let mut affine_pvk_x = blst_p1_affine::default();
 
-    let affine_pvk_x = blst_p1_affine {
-        x: read_fp_blst(&pvk_gamma_abc_g1_x_bytes[0..48]),
-        y: read_fp_blst(&pvk_gamma_abc_g1_x_bytes[48..96])
+     unsafe {
+        blst_p1_deserialize(&mut affine_pvk_x, pvk_gamma_abc_g1_x_bytes.as_ptr());
     };
+
     let mut p1_pvk_x = blst_p1::default();
     unsafe { blst_p1_from_affine(&mut p1_pvk_x, &affine_pvk_x) };
 
