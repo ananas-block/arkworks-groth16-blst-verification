@@ -16,11 +16,13 @@ For reference, the filecoin team has created [blstrs](https://github.com/filecoi
 - blst_p1_to_affine
 - blst_p1_from_affine
 - blst_p1_affine_serialize
+- blst_p1_affine_on_curve
 - blst_p1_deserialize
 - blst_p2
 - blst_p2_affine
 - blst_p2_affine_serialize
 - blst_p2_deserialize
+- blst_p2_affine_on_curve
 - blst_fp
 - blst_fp_from_lendian
 - blst_fp2
