@@ -2,7 +2,7 @@
 
 This is a proof of concept on how to use [blst](https://github.com/supranational/blst) to verify arkworks groth16 proofs on bls12 381.
 
-The fastest way to verify a proof is by using blst::pairing with paring_blst.as_fp12().final_exp() for verification see [blst_poc.rs](https://github.com/ananas-block/).
+The fastest way to verify a proof is by using blst::pairing with paring_blst.as_fp12().final_exp() for verification see [blst_poc.rs](https://github.com/ananas-block/arkworks-groth16-blst-verification/blob/main/src/blst_poc.rs#L156-L198).
 
 For reference, the filecoin team has created [blstrs](https://github.com/filecoin-project/blstrs) a rust wrapper library around blst rust bindings which is simpler to use.
 
