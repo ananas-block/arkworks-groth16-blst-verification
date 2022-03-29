@@ -5,7 +5,7 @@ use blst::*;
 use crate::blstrs_poc::*;
 use ark_ff::BigInteger;
 use crate::parsers::*;
-
+use crate::ITERATIONS;
 // For randomness (during paramgen and proof generation)
 use ark_std::rand::Rng;
 
@@ -112,7 +112,9 @@ pub fn groth_16_verification_with_blst() {
         let mut fqk_alpha_g1_beta_g2_ark_bytes = vec![0u8;576];
         parse_f_to_bytes(pvk.alpha_g1_beta_g2, &mut fqk_alpha_g1_beta_g2_ark_bytes);
         let fqk_alpha_g1_beta_g2_ark_blst = parse_fp12_from_bytes_blst(&fqk_alpha_g1_beta_g2_ark_bytes);
-
+        // println!("pvk.alpha_g1_beta_g2: {:?}", pvk.alpha_g1_beta_g2);
+        // println!("fqk_alpha_g1_beta_g2_ark_blst: {:?}", fqk_alpha_g1_beta_g2_ark_blst);
+        // panic!();
 
 
         // creates proof data bytes offchain
@@ -162,11 +164,11 @@ pub fn groth_16_verification_with_blst() {
             const NBITS: usize = 255;
             unsafe { blst_p1_mult(&mut mul_assign, &p1_pvk_1, scalar_bytes.as_ptr(), NBITS) };
 
-            let mut mul_assign_affine = blst_p1_affine::default();
-            unsafe { blst_p1_to_affine(&mut mul_assign_affine, &mul_assign) };
+            // let mut mul_assign_affine = blst_p1_affine::default();
+            // unsafe { blst_p1_to_affine(&mut mul_assign_affine, &mul_assign) };
 
             //g_ic.add_assign(&g1_affine_1);
-            unsafe { blst_p1_add_or_double_affine(&mut p1_pvk_0, &p1_pvk_0, &mul_assign_affine) };
+            unsafe { blst_p1_add(&mut p1_pvk_0, &p1_pvk_0, &mul_assign) };
         }
 
         let mut prepare_inputs_result_affine = blst_p1_affine::default();
@@ -181,56 +183,69 @@ pub fn groth_16_verification_with_blst() {
 
         let blst_proof_2_g1 = get_p1_affine(&proof_c_g1_bytes);
         let blst_proof_2_g2 = get_p2_affine(&proof_delta_g2_bytes);
-
-
-        // miller loop
-        let mut tmp0 = blst_fp12::default();
-        unsafe { blst_miller_loop(&mut tmp0, &blst_proof_b, &blst_proof_a) };
-        let mut tmp1 = blst_fp12::default();
-        unsafe { blst_miller_loop(&mut tmp1, &blst_proof_1_g2, &blst_proof_1_g1) };
-        let mut tmp2 = blst_fp12::default();
-        unsafe { blst_miller_loop(&mut tmp2, &blst_proof_2_g2, &blst_proof_2_g1) };
-        tmp0.mul_assign(tmp1);
-        tmp0.mul_assign(tmp2);
-
-        // final exponentiation
-        let mut result = blst_fp12::default();
-        result = tmp0.final_exp();
-        assert_eq!(result, ark_works_ref_final_exp_as_blst, "blst verification failed");
-
-
-        // alternative computing coeffs explicitly
-        let mut lines = vec![blst_fp6::default(); 68];
-        let mut tmp0 = blst_fp12::default();
-        // lines are the coeffs doesn t change anything though same result
-        unsafe { blst_precompute_lines(lines.as_mut_ptr(), &blst_proof_b) }
-
-        unsafe { blst_miller_loop_lines(&mut tmp0, &lines[0], &blst_proof_a) };
-
-        let mut tmp1 = blst_fp12::default();
-        unsafe { blst_precompute_lines(lines.as_mut_ptr(), &blst_proof_1_g2) }
-
-        unsafe { blst_miller_loop_lines(&mut tmp1, &lines[0], &blst_proof_1_g1) };
-        let mut tmp2 = blst_fp12::default();
-        unsafe { blst_precompute_lines(lines.as_mut_ptr(), &blst_proof_2_g2) }
-
-        unsafe { blst_miller_loop_lines(&mut tmp2, &lines[0], &blst_proof_2_g1) };
-
-        unsafe { blst::blst_fp12_mul(&mut tmp0, &tmp0, &tmp1) };
-        unsafe { blst::blst_fp12_mul(&mut tmp0, &tmp0, &tmp2) };
-        tmp0 = tmp0.final_exp();
-        assert_eq!(tmp0, ark_works_ref_final_exp_as_blst, "blst verification with lines failed");
-
         /*
-        alternative with pairing class
-        let mut dst = [0u8; 3];
-        let mut paring_blst = Pairing::new(false, &dst);
-        paring_blst.raw_aggregate(&blst_proof_b, &blst_proof_a);
-        paring_blst.raw_aggregate(&blst_proof_1_g2, &blst_proof_1_g1);
-        paring_blst.raw_aggregate(&blst_proof_2_g2, &blst_proof_2_g1);
-        paring_blst.commit();
-        assert_eq!(paring_blst.as_fp12().final_exp(), ark_works_ref_final_exp_as_blst, "final exp blst failed commit");
+        let ml_duration = Instant::now();
+        for i in 0..ITERATIONS {
+            // miller loop
+            let mut tmp0 = blst_fp12::default();
+            unsafe { blst_miller_loop(&mut tmp0, &blst_proof_b, &blst_proof_a) };
+            let mut tmp1 = blst_fp12::default();
+            unsafe { blst_miller_loop(&mut tmp1, &blst_proof_1_g2, &blst_proof_1_g1) };
+            let mut tmp2 = blst_fp12::default();
+            unsafe { blst_miller_loop(&mut tmp2, &blst_proof_2_g2, &blst_proof_2_g1) };
+            tmp0.mul_assign(tmp1);
+            tmp0.mul_assign(tmp2);
 
+            // final exponentiation
+            let mut result = blst_fp12::default();
+            result = tmp0.final_exp();
+            //assert_eq!(result, ark_works_ref_final_exp_as_blst, "blst verification failed");
+        }
+        println!("ml duration {}", ml_duration.elapsed().as_micros());
+
+        let ml_lines_duration = Instant::now();
+        for i in 0..ITERATIONS {
+            // alternative miller loop with lines
+            let mut lines = vec![blst_fp6::default(); 68];
+            let mut tmp0 = blst_fp12::default();
+            // lines are the coeffs doesn t change anything though same result
+            unsafe { blst_precompute_lines(lines.as_mut_ptr(), &blst_proof_b) }
+
+            unsafe { blst_miller_loop_lines(&mut tmp0, &lines[0], &blst_proof_a) };
+
+            let mut tmp1 = blst_fp12::default();
+            unsafe { blst_precompute_lines(lines.as_mut_ptr(), &blst_proof_1_g2) }
+
+            unsafe { blst_miller_loop_lines(&mut tmp1, &lines[0], &blst_proof_1_g1) };
+            let mut tmp2 = blst_fp12::default();
+            unsafe { blst_precompute_lines(lines.as_mut_ptr(), &blst_proof_2_g2) }
+
+            unsafe { blst_miller_loop_lines(&mut tmp2, &lines[0], &blst_proof_2_g1) };
+
+            unsafe { blst::blst_fp12_mul(&mut tmp0, &tmp0, &tmp1) };
+            unsafe { blst::blst_fp12_mul(&mut tmp0, &tmp0, &tmp2) };
+            tmp0 = tmp0.final_exp();
+            //assert_eq!(tmp0, ark_works_ref_final_exp_as_blst, "blst verification with lines failed");
+        }
+        println!("ml lines duration {}", ml_lines_duration.elapsed().as_micros());
+        */
+        //alternative with pairing class (fastest)
+        let pairing_class_duration = Instant::now();
+        for i in 0..ITERATIONS {
+            let mut dst = [0u8; 3];
+            let mut paring_blst = Pairing::new(true, &dst);
+            paring_blst.raw_aggregate(&blst_proof_b, &blst_proof_a);
+            paring_blst.raw_aggregate(&blst_proof_1_g2, &blst_proof_1_g1);
+            paring_blst.raw_aggregate(&blst_proof_2_g2, &blst_proof_2_g1);
+            paring_blst.commit();
+            // final verify does not work
+            // let res_pairing_blst = paring_blst.finalverify(Some(&ark_works_ref_final_exp_as_blst));
+            // println!("res_pairing_blst {:?}",res_pairing_blst);
+            // assert!(res_pairing_blst, "pairing_blst final verify failed");
+            assert_eq!(paring_blst.as_fp12().final_exp(), ark_works_ref_final_exp_as_blst, "pairing_blst failed");
+        }
+        println!("duration pairing class {} over {} iterations", pairing_class_duration.elapsed().as_micros(), ITERATIONS);
+        /*
         // finalverify check fails
         let res_pairing_blst = paring_blst.finalverify(Some(&fqk_alpha_g1_beta_g2_ark_blst));
         println!("{:?}",res_pairing_blst);
