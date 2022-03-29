@@ -1,4 +1,4 @@
-# ark_groth16 on bls12 381 proof verification with blst
+# ark_groth16 on BLS12-381 proof verification with blst
 
 This is a proof of concept on how to use [blst](https://github.com/supranational/blst) to verify arkworks groth16 proofs on bls12 381.
 
