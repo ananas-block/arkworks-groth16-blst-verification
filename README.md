@@ -25,7 +25,6 @@ For reference, the filecoin team has created [blstrs](https://github.com/filecoi
 - blst_fp_from_lendian
 - blst_fp2
 - blst_fp6
-- blst_fp12
 
 ## helper [functions](https://github.com/ananas-block/arkworks-groth16-blst-verification/blob/main/src/parsers.rs#L13-L60) to parse blst datatypes
 - parse_fp2_from_bytes_blst
