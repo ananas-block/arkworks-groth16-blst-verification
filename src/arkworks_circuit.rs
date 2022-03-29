@@ -355,46 +355,9 @@ pub fn parse_fp2_from_bytes_blst_be(
     }
 }
 
-pub fn read_fp_blst(fp_bytes_le: &[u8]) -> blst::blst_fp {
-    let mut fp_bytes_be = vec![0u8;48];
-    //println!("bytes_le: {:?}", fp_bytes_le);
 
-    for (i, elem) in fp_bytes_le.iter().rev().enumerate(){
-        fp_bytes_be[i] = *elem;
-    }
 
-    let mut blst_fp: &mut blst::blst_fp = &mut blst_fp::default();
-    unsafe {
-        let fp384_ark_bytes_ptr: *const u8 = &fp_bytes_be[0];
-        let blst_fp_ptr: *mut blst::blst_fp = blst_fp;
 
-        blst_fp_from_bendian(blst_fp_ptr, fp384_ark_bytes_ptr);
-        *blst_fp = *blst_fp_ptr;
-    }
-    *blst_fp
-}
-
-pub fn parse_fp2_from_bytes_blst(
-    bytes: &[u8],
-) -> blst::blst_fp2 {
-    blst_fp2 {
-        fp: bytes.chunks(48).map(|fp_bytes| read_fp_blst(&fp_bytes)).collect::<Vec<blst_fp>>().try_into().unwrap(),
-    }
-}
-pub fn parse_fp6_from_bytes_blst(
-    bytes: &[u8]
-) -> blst::blst_fp6 {
-    blst_fp6 {
-        fp2: bytes.chunks(96).map(|fp2_bytes| parse_fp2_from_bytes_blst(&fp2_bytes)).collect::<Vec<blst_fp2>>().try_into().unwrap(),
-    }
-}
-pub fn parse_fp12_from_bytes_blst(
-    bytes: &[u8]
-) -> blst::blst_fp12 {
-    blst_fp12 {
-        fp6: bytes.chunks(288).map(|fp6_bytes| parse_fp6_from_bytes_blst(&fp6_bytes)).collect::<Vec<blst_fp6>>().try_into().unwrap(),
-    }
-}
 
 /*
 #[test]

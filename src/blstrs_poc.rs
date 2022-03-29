@@ -97,7 +97,6 @@ pub fn blstrs_test() {
         // reference prepared inputs
         let prepared_inputs = prepare_inputs(&pvk, &[image]).unwrap();
 
-
         // parsing verifying key
         let mut gamma_abc_g1_bytes_0 = vec![0u8;96];
         let mut gamma_abc_g1_bytes_1 = vec![0u8;96];
@@ -108,12 +107,22 @@ pub fn blstrs_test() {
             x: read_fp_blst(&gamma_abc_g1_bytes_1[0..48]),
             y: read_fp_blst(&gamma_abc_g1_bytes_1[48..96])
         };
+        
         let mut bytes_pvk_1 = [0u8;96];
+        let mut affine_pvk_1 = blst_p1_affine::default();
+        let mut p1_pvk_1 = blst_p1::default();
+
         unsafe {
             blst_p1_affine_serialize(
                 bytes_pvk_1.as_mut_ptr(),
                 &gamma_abc_g1_blst_1
             );
+            blst_p1_deserialize(
+                &mut affine_pvk_1,
+                bytes_pvk_1.as_ptr()
+            );
+            unsafe { blst_p1_from_affine(&mut p1_pvk_1, &affine_pvk_1) };
+
         };
 
         let gamma_abc_g1_blst_0 = blst_p1_affine {
@@ -121,11 +130,20 @@ pub fn blstrs_test() {
             y: read_fp_blst(&gamma_abc_g1_bytes_0[48..96])
         };
         let mut bytes_pvk_0 = [0u8;96];
+        let mut affine_pvk_0 = blst_p1_affine::default();
+        let mut p1_pvk_0 = blst_p1::default();
+
         unsafe {
             blst_p1_affine_serialize(
                 bytes_pvk_0.as_mut_ptr(),
                 &gamma_abc_g1_blst_0
             );
+            blst_p1_deserialize(
+                &mut affine_pvk_0,
+                bytes_pvk_0.as_ptr()
+            );
+
+            unsafe { blst_p1_from_affine(&mut p1_pvk_0, &affine_pvk_0) };
         };
 
         // prepare data for public inputs offchain
@@ -146,18 +164,38 @@ pub fn blstrs_test() {
 
         // create scalar(s) of public input(s) onchain
         unsafe { blst_fr_from_uint64(&mut input_bytes_blst, &bytes_u64[0]) };
-        let scalar = <blstrs::Scalar as From<blst_fr>>::from(input_bytes_blst);
+        let scalar_bytes = <blstrs::Scalar as From<blst_fr>>::from(input_bytes_blst).to_bytes_le();
 
-
+        let number_of_public_inputs = 1usize;
         // prepare inputs computation onchain
-        for i in number_of_public_inputs {
-            g1_affine_1.mul_assign(&scalar);
-            g_ic.add_assign(&g1_affine_1);
-            //unsafe { blst_p1_add_or_double_affine(&mut self.0, &self.0, &rhs.0) };
+        for i in 0..number_of_public_inputs {
+            //g1_affine_1.mul_assign(&scalar);
+            // mul_assign
+            let mut mul_assign = blst_p1::default();
+
+            // Scalar is 255 bits wide.
+            const NBITS: usize = 255;
+
+
+            unsafe { blst_p1_mult(&mut mul_assign, &p1_pvk_1, scalar_bytes.as_ptr(), NBITS) };
+            let mut mul_assign_affine = blst_p1_affine::default();
+
+            unsafe { blst_p1_to_affine(&mut mul_assign_affine, &mul_assign) };
+            println!("mul_assign_affine {:?}", mul_assign_affine);
+
+            //g_ic.add_assign(&g1_affine_1);
+            // g_ic correct
+            unsafe { blst_p1_add_or_double_affine(&mut p1_pvk_0, &p1_pvk_0, &mul_assign_affine) };
+            let mut result_affine = blst_p1_affine::default();
+
+            unsafe { blst_p1_to_affine(&mut result_affine, &p1_pvk_0) };
+
+            println!("result {:?}", result_affine);
+
         }
 
-        println!("gamma_abc_g1_blst {:?}", G1Affine::from(&g_ic));
-        println!("prepared_inputs {}", prepared_inputs.into_affine());
+        //println!("gamma_abc_g1_blst {:?}", G1Affine::from(&g_ic));
+        println!("prepared_inputs {:?}", prepared_inputs.into_affine());
 
 
         panic!();

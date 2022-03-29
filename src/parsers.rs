@@ -3,10 +3,57 @@ use ark_ec;
 use ark_ff::bytes::{FromBytes, ToBytes};
 use ark_ff::fields::models::quadratic_extension::QuadExtField;
 use ark_ff::Fp384;
-use ark_ff::One;
 use ark_ff::BigInteger;
 use blst::*;
 use crate::arkworks_circuit::*;
+use byte_slice_cast::AsByteSlice;
+
+
+pub fn read_fp_blst(fp_bytes_le: &[u8]) -> blst::blst_fp {
+
+    let mut blst_fp = blst_fp::default();
+    unsafe {
+        blst_fp_from_lendian(&mut blst_fp, fp_bytes_le.as_ptr());
+    }
+    blst_fp
+}
+
+pub fn parse_fp2_from_bytes_blst(
+    bytes: &[u8],
+) -> blst::blst_fp2 {
+    blst_fp2 {
+        fp: bytes.chunks(48).map(|fp_bytes| read_fp_blst(&fp_bytes)).collect::<Vec<blst_fp>>().try_into().unwrap(),
+    }
+}
+
+pub fn parse_fp6_from_bytes_blst(
+    bytes: &[u8]
+) -> blst::blst_fp6 {
+    blst_fp6 {
+        fp2: bytes.chunks(96).map(|fp2_bytes| parse_fp2_from_bytes_blst(&fp2_bytes)).collect::<Vec<blst_fp2>>().try_into().unwrap(),
+    }
+}
+pub fn parse_fp12_from_bytes_blst(
+    bytes: &[u8]
+) -> blst::blst_fp12 {
+    blst_fp12 {
+        fp6: bytes.chunks(288).map(|fp6_bytes| parse_fp6_from_bytes_blst(&fp6_bytes)).collect::<Vec<blst_fp6>>().try_into().unwrap(),
+    }
+}
+
+pub fn get_p1_affine(proof_g1_bytes: &[u8]) -> blst_p1_affine {
+    blst_p1_affine {
+        x: read_fp_blst(&proof_g1_bytes[0..48]),
+        y: read_fp_blst(&proof_g1_bytes[48..96]),
+    }
+}
+pub fn get_p2_affine(proof_g2_bytes: &[u8]) -> blst_p2_affine {
+    blst_p2_affine {
+        x: parse_fp2_from_bytes_blst(&proof_g2_bytes[0..96]),
+        y: parse_fp2_from_bytes_blst(&proof_g2_bytes[96..192]),
+    }
+}
+
 pub fn parse_proof_b_from_bytes(
     range: &Vec<u8>,
 ) -> ark_ec::models::bls12::g2::G2Affine<ark_bls12_381::Parameters> {
@@ -97,28 +144,22 @@ pub fn parse_proof_a_or_c_from_bytes(
     )
 }
 
-pub fn parse_proof_a_or_c_to_bytes_be (
-    x: ark_ec::short_weierstrass_jacobian::GroupAffine<ark_bls12_381::g1::Parameters>,
-) -> Vec<u8> {
-    let mut bytes_x = x.x.0.to_bytes_be();
-    let mut bytes_y = x.y.0.to_bytes_be();
-    [bytes_x, bytes_y].concat()
-
-    // <Fp384<ark_bls12_381::FqParameters> as ToBytes>::write(&x.x, &mut account[0..48]).unwrap();
-    // <Fp384<ark_bls12_381::FqParameters> as ToBytes>::write(&x.y, &mut account[48..96]).unwrap();
-}
-
 pub fn parse_proof_a_or_c_to_bytes(
     x: ark_ec::short_weierstrass_jacobian::GroupAffine<ark_bls12_381::g1::Parameters>,
     account: &mut Vec<u8>,
 ) {
-    println!("x: {:?}", x);
     <Fp384<ark_bls12_381::FqParameters> as ToBytes>::write(&x.x, &mut account[0..48]).unwrap();
     <Fp384<ark_bls12_381::FqParameters> as ToBytes>::write(&x.y, &mut account[48..96]).unwrap();
 }
 
+pub fn to_bytes_le(fr: blst_fr) -> [u8; 32] {
+        let mut out = [0u64; 4];
+        println!("to_bytes_le: {:?}", fr);
+        unsafe { blst_uint64_from_fr(out.as_mut_ptr(), &fr) };
+        out.as_byte_slice().try_into().unwrap()
+}
+
 pub fn u64s_from_bytes(bytes: &[u8; 32]) -> [u64; 4] {
-    println!("u64s_from_bytes: {:?}", bytes);
     [
         u64::from_le_bytes(bytes[0..8].try_into().unwrap()),
         u64::from_le_bytes(bytes[8..16].try_into().unwrap()),
